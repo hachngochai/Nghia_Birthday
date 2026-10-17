@@ -559,6 +559,44 @@
     mask.material.transparent=false;
     mesh(new THREE.PlaneGeometry(.7,.02),new THREE.MeshBasicMaterial({color:0x797988}),0,2.16,.727,avatar);
     
+
+    // Small low-poly kittens circle Nghia and accelerate when the yin-yang is touched.
+    symbol.userData.specialAction='yinyang';
+    yinYang.userData.specialAction='yinyang';
+    const kittens=[];
+    for(let k=0;k<5;k++){
+      const cat=new THREE.Group();island.add(cat);
+      const fur=[0xe7e7e8,0x2b2c33,0xa6a6b2,0xf8f5ef,0x64616c][k];
+      box(.4,.31,.54,fur,0,.34,0,cat);
+      ball(.25,fur,0,.57,.29,cat);
+      for(const side of [-1,1]){
+        const ear=mesh(new THREE.ConeGeometry(.12,.24,4),mat(fur),side*.16,.81,.3,cat);
+        ear.rotation.z=side*.16;
+        box(.10,.24,.12,fur,side*.14,.14,.2,cat);
+        box(.1,.24,.12,fur,side*.14,.14,-.24,cat);
+        ball(.035,0x111118,side*.09,.6,.52,cat);
+      }
+      const tail=mesh(new THREE.TorusGeometry(.25,.065,6,16,Math.PI*1.25),mat(fur),0,.54,-.38,cat);
+      tail.rotation.y=Math.PI/2;
+      kittens.push({cat,phase:k*Math.PI*2/5});
+    }
+    let yinSpinUntil=0;
+    function specialInteraction(target){
+      if(target!=='yinyang')return false;
+      yinSpinUntil=clocks.t+5;
+      setSpeech('Âm dương luân chuyển! Nhìn đàn mèo kìa, Nghĩa!',avatar);
+      return true;
+    }
+    function animateSpecial(){
+      const boosted=clocks.t<yinSpinUntil;
+      symbol.rotation.z+=boosted?.12:.002;
+      kittens.forEach(({cat,phase},i)=>{
+        const a=clocks.t*(boosted?3.5:.65)+phase;
+        cat.position.set(Math.cos(a)*1.25,.02+Math.abs(Math.sin(clocks.t*7+i))*.045,Math.sin(a)*.92+.2);
+        cat.rotation.y=-a+Math.PI/2;
+      });
+    }
+
     const balloons = [];
     for (let i = 0; i < 18; i++) {
       const b = new THREE.Group();
@@ -829,16 +867,19 @@
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects([objectTag, gift, cake, avatar, letter], true);
+      const hits = raycaster.intersectObjects([objectTag, gift, cake, avatar, letter, symbol], true);
       if (!hits.length) return null;
       if(hits[0].object===objectTag&&objectTag.visible)return objectTag.userData.targetName;
       let obj = hits[0].object;
+      let probe=obj;
+      while(probe){if(probe.userData?.specialAction)return probe.userData.specialAction;probe=probe.parent;}
       while (obj.parent && !['gift', 'cake', 'avatar', 'letter'].includes(obj.name)) obj = obj.parent;
       return obj.name || null;
     }
 
     function handleInteraction(targetName = null) {
       ensureAudioContext();
+      if (state.phase !== 'intro' && specialInteraction(targetName)) return;
       if (state.phase === 'intro') { openGift(); return; }
       if (state.phase === 'island') { enterPhase('greeting'); return; }
       if (state.phase === 'greeting') { enterPhase('explore'); return; }
@@ -931,7 +972,8 @@
       controls.update();
       island.rotation.y = state.phase === 'explore' ? Math.sin(clocks.t * 0.4) * 0.06 : island.rotation.y * 0.92;
       avatar.position.y = Math.sin(clocks.t * 2.1) * 0.06;
-      symbol.rotation.z = clocks.t * 0.10;
+      animateSpecial();
+      // Yin-yang spin is handled by animateSpecial().
       balloons.forEach(({ group, baseY, seed }) => { group.position.y = baseY + Math.sin(clocks.t + seed) * 0.15; });
       cakeHover.rotation.z += 0.02;
       cakeHover.material.opacity = 0.4 + Math.sin(clocks.t * 3) * 0.15;
